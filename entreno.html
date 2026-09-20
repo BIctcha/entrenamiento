@@ -373,6 +373,31 @@ const LASTREPS_KEY = "entreno_reps";
 
 let state = null;
 
+function fetchHistoryFromSheet() {
+  return fetch(SHEET_URL, { method: "GET" })
+    .then(function(r) { return r.json(); })
+    .then(function(rows) {
+      const sessionsMap = {};
+      rows.forEach(function(row) {
+        if (row.Dia === "TEST") return;
+        const key = row.Fecha + "|" + row.Dia;
+        if (!sessionsMap[key]) {
+          sessionsMap[key] = { date: row.Fecha, day: row.Dia, results: [] };
+        }
+        sessionsMap[key].results.push({
+          exercise: row.Ejercicio,
+          series: Number(row.Serie),
+          reps: Number(row.Reps),
+          weight: Number(row.Peso),
+          isTime: false
+        });
+      });
+      const sessions = Object.values(sessionsMap);
+      sessions.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+      return sessions;
+    });
+}
+
 function loadHistory() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -631,14 +656,11 @@ function finishSession() {
   saveLastWeights(state.lastWeights);
   saveLastReps(state.lastReps);
 
-  const history = loadHistory();
   const session = {
     date: new Date().toISOString(),
     day: state.day,
     results: state.results
   };
-  history.unshift(session);
-  saveHistory(history);
   sendToSheet(session);
 
   renderSummary(session);
@@ -689,28 +711,32 @@ function doExit() {
 }
 
 function showHistory() {
-  const history = loadHistory();
   const container = document.getElementById('history-list');
-  container.innerHTML = "";
-
-  if (!history.length) {
-    container.innerHTML = '<div class="empty-msg">Todavía no hay sesiones registradas.</div>';
-  } else {
-    history.forEach(session => {
-      const date = new Date(session.date);
-      const dateStr = date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
-        " " + date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-
-      const div = document.createElement('div');
-      div.className = "log-entry";
-      div.innerHTML =
-        '<div class="log-date">Día ' + session.day + ' — ' + dateStr + '</div>' +
-        '<div class="log-detail">' + formatSessionDetail(session) + '</div>';
-      container.appendChild(div);
-    });
-  }
-
+  container.innerHTML = '<div class="empty-msg">Cargando...</div>';
   showScreen('screen-history');
+
+  fetchHistoryFromSheet().then(function(history) {
+    container.innerHTML = "";
+
+    if (!history.length) {
+      container.innerHTML = '<div class="empty-msg">Todavía no hay sesiones registradas.</div>';
+    } else {
+      history.forEach(session => {
+        const date = new Date(session.date);
+        const dateStr = date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+          " " + date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+        const div = document.createElement('div');
+        div.className = "log-entry";
+        div.innerHTML =
+          '<div class="log-date">Día ' + session.day + ' — ' + dateStr + '</div>' +
+          '<div class="log-detail">' + formatSessionDetail(session) + '</div>';
+        container.appendChild(div);
+      });
+    }
+  }).catch(function(err) {
+    container.innerHTML = '<div class="empty-msg">Error al cargar desde Google Sheets: ' + err.message + '</div>';
+  });
 }
 function getWeekKey(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -744,75 +770,78 @@ function formatSessionDetail(session) {
 }
 
 function showCalendar() {
-  const history = loadHistory();
   const container = document.getElementById('calendar-list');
-  container.innerHTML = "";
-
-  if (!history.length) {
-    container.innerHTML = '<div class="empty-msg">Todavía no hay sesiones registradas.</div>';
-    showScreen('screen-calendar');
-    return;
-  }
-
-  const weeks = {};
-  history.forEach(session => {
-    const date = new Date(session.date);
-    const key = getWeekKey(date);
-    if (!weeks[key]) {
-      weeks[key] = { start: getWeekStart(date), days: new Set(), sessions: [] };
-    }
-    weeks[key].days.add(session.day);
-    weeks[key].sessions.push(session);
-  });
-
-  const sortedKeys = Object.keys(weeks).sort().reverse();
-
-  sortedKeys.forEach((key, wi) => {
-    const week = weeks[key];
-    const daysArr = ['A', 'B', 'C'];
-    const count = week.days.size;
-    const complete = count >= 3;
-
-    const endDate = new Date(week.start);
-    endDate.setDate(endDate.getDate() + 6);
-    const label = week.start.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) +
-      " – " + endDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-
-    const div = document.createElement('div');
-    div.className = "week-row" + (complete ? " complete" : "");
-    div.style.cursor = "pointer";
-
-    const detailId = "week-detail-" + wi;
-    div.innerHTML =
-      '<div class="week-label">' + label + '</div>' +
-      '<div class="week-days">' + count + ' de 3 días completados · toca para ver detalle</div>' +
-      '<div class="week-progress">' +
-      daysArr.map(d => '<div class="pip' + (week.days.has(d) ? ' done' : '') + '">' + d + '</div>').join('') +
-      '</div>' +
-      '<div id="' + detailId + '" style="display:none; margin-top:12px;"></div>';
-
-    div.onclick = () => {
-      const detailEl = document.getElementById(detailId);
-      if (detailEl.style.display === 'none') {
-        detailEl.style.display = 'block';
-        detailEl.innerHTML = week.sessions
-          .sort((a, b) => new Date(b.date) - new Date(a.date))
-          .map(s => {
-            const d = new Date(s.date);
-            const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) +
-              " " + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-            return '<div class="log-entry"><div class="log-date">Día ' + s.day + ' — ' + dateStr + '</div>' +
-              '<div class="log-detail">' + formatSessionDetail(s) + '</div></div>';
-          }).join('');
-      } else {
-        detailEl.style.display = 'none';
-      }
-    };
-
-    container.appendChild(div);
-  });
-
+  container.innerHTML = '<div class="empty-msg">Cargando...</div>';
   showScreen('screen-calendar');
+
+  fetchHistoryFromSheet().then(function(history) {
+    container.innerHTML = "";
+
+    if (!history.length) {
+      container.innerHTML = '<div class="empty-msg">Todavía no hay sesiones registradas.</div>';
+      return;
+    }
+
+    const weeks = {};
+    history.forEach(session => {
+      const date = new Date(session.date);
+      const key = getWeekKey(date);
+      if (!weeks[key]) {
+        weeks[key] = { start: getWeekStart(date), days: new Set(), sessions: [] };
+      }
+      weeks[key].days.add(session.day);
+      weeks[key].sessions.push(session);
+    });
+
+    const sortedKeys = Object.keys(weeks).sort().reverse();
+
+    sortedKeys.forEach((key, wi) => {
+      const week = weeks[key];
+      const daysArr = ['A', 'B', 'C'];
+      const count = week.days.size;
+      const complete = count >= 3;
+
+      const endDate = new Date(week.start);
+      endDate.setDate(endDate.getDate() + 6);
+      const label = week.start.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) +
+        " – " + endDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+
+      const div = document.createElement('div');
+      div.className = "week-row" + (complete ? " complete" : "");
+      div.style.cursor = "pointer";
+
+      const detailId = "week-detail-" + wi;
+      div.innerHTML =
+        '<div class="week-label">' + label + '</div>' +
+        '<div class="week-days">' + count + ' de 3 días completados · toca para ver detalle</div>' +
+        '<div class="week-progress">' +
+        daysArr.map(d => '<div class="pip' + (week.days.has(d) ? ' done' : '') + '">' + d + '</div>').join('') +
+        '</div>' +
+        '<div id="' + detailId + '" style="display:none; margin-top:12px;"></div>';
+
+      div.onclick = () => {
+        const detailEl = document.getElementById(detailId);
+        if (detailEl.style.display === 'none') {
+          detailEl.style.display = 'block';
+          detailEl.innerHTML = week.sessions
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .map(s => {
+              const d = new Date(s.date);
+              const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) +
+                " " + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+              return '<div class="log-entry"><div class="log-date">Día ' + s.day + ' — ' + dateStr + '</div>' +
+                '<div class="log-detail">' + formatSessionDetail(s) + '</div></div>';
+            }).join('');
+        } else {
+          detailEl.style.display = 'none';
+        }
+      };
+
+      container.appendChild(div);
+    });
+  }).catch(function(err) {
+    container.innerHTML = '<div class="empty-msg">Error al cargar desde Google Sheets: ' + err.message + '</div>';
+  });
 }
 </script>
 </body>
