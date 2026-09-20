@@ -263,8 +263,6 @@
     <span>›</span>
   </button>
   <button class="link-btn" onclick="showCalendar()">Ver calendario</button>
-  <button class="link-btn" onclick="testSheetConnection()" style="margin-left:16px;">Probar conexión</button>
-  <div id="test-result" style="margin-top:12px; font-size:0.85rem; color:var(--muted); white-space:pre-wrap;"></div>
 </div>
 
 <div id="screen-daylist" class="screen">
@@ -578,57 +576,6 @@ function completeSeries() {
   }
 }
 
-function testSheetConnection() {
-  const resultEl = document.getElementById('test-result');
-  resultEl.textContent = "Probando conexión general (Google)...";
-
-  fetch("https://www.google.com", { method: "GET", mode: "no-cors" })
-    .then(function() {
-      resultEl.textContent = "✓ Internet OK. Probando Google Sheets...\n";
-      return runSheetTest(resultEl);
-    })
-    .catch(function(err) {
-      resultEl.textContent = "✗ Fallo incluso al conectar a Google.com.\n" +
-        "Nombre: " + err.name + "\nMensaje: " + err.message + "\n" +
-        "Esto sugiere bloqueo de red general (VPN, firewall, modo avión parcial).";
-    });
-}
-
-function runSheetTest(resultEl) {
-  const testSession = {
-    date: new Date().toISOString(),
-    day: "TEST",
-    results: [{ exercise: "Prueba de conexión", series: 1, reps: 99, weight: 1, isTime: false }]
-  };
-  const rows = testSession.results.map(function(r) {
-    return {
-      fecha: testSession.date,
-      dia: testSession.day,
-      ejercicio: r.exercise,
-      serie: r.series,
-      reps: r.reps,
-      peso: r.weight
-    };
-  });
-
-  return fetch(SHEET_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ rows: rows })
-  })
-  .then(function(r) {
-    resultEl.textContent += "Status HTTP: " + r.status + " " + r.statusText + "\n";
-    return r.text();
-  })
-  .then(function(text) {
-    resultEl.textContent += "Respuesta: " + text;
-  })
-  .catch(function(err) {
-    resultEl.textContent += "✗ Fallo específico de Google Sheets.\n" +
-      "Nombre: " + err.name + "\nMensaje: " + err.message + "\n" +
-      "URL usada: " + SHEET_URL;
-  });
-}
 
 function sendToSheet(session) {
   const rows = session.results.map(function(r) {
