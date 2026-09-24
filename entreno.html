@@ -239,11 +239,37 @@
   .week-progress { display: flex; gap: 6px; margin-top: 8px; }
   .week-progress .pip { width: 18px; height: 18px; border-radius: 6px; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; }
   .week-progress .pip.done { background: var(--good); color: #06210f; font-weight: 700; }
+  .week-progress .pip.missed { background: #e05a4f; color: #2b0a08; font-weight: 700; }
 
   .session-ex-list { display: flex; flex-direction: column; gap: 6px; }
   .session-ex-row { display: flex; justify-content: space-between; gap: 10px; font-size: 0.85rem; }
   .session-ex-name { color: var(--text); flex-shrink: 0; }
   .session-ex-series { color: var(--muted); text-align: right; }
+
+  .series-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .series-row:last-child { border-bottom: none; }
+  .series-num { width: 22px; color: var(--muted); font-size: 0.9rem; flex-shrink: 0; }
+  .series-row select {
+    flex: 1;
+    text-align: center;
+    text-align-last: center;
+    font-size: 1.05rem;
+    padding: 10px 4px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    appearance: none;
+    -webkit-appearance: none;
+    min-width: 0;
+  }
+  .series-row .unit-label { color: var(--muted); font-size: 0.8rem; width: 30px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -283,22 +309,24 @@
   <div class="card">
     <div class="ex-name" id="ex-name"></div>
     <div class="ex-translation" id="ex-translation"></div>
-    <div class="ex-progress" id="ex-progress"></div>
 
-    <div class="series-dots" id="series-dots"></div>
-
-    <div class="weight-row" id="weight-row">
-      <span>Peso:</span>
-      <select id="weight-input"></select>
-      <span>kg</span>
+    <div id="last-time-box" style="display:none; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px 14px; margin-bottom:16px; font-size:0.85rem; color:var(--muted);">
+      <strong style="color:var(--text);">Última vez:</strong> <span id="last-time-text"></span>
     </div>
 
-    <div class="weight-row">
-      <span id="reps-label">Reps:</span>
-      <select id="reps-input"></select>
+    <div id="countdown-box" style="display:none; text-align:center; margin-bottom:20px;">
+      <div id="countdown-val" style="font-size:3rem; font-weight:700;">--</div>
+      <div class="weight-row" style="justify-content:center; margin:12px 0;">
+        <span>Duración:</span>
+        <select id="countdown-seconds-input"></select>
+        <span>seg</span>
+      </div>
+      <button class="secondary-btn" id="countdown-btn" onclick="toggleCountdown()">Iniciar cuenta atrás</button>
     </div>
 
-    <button class="primary-btn" onclick="completeSeries()">Serie completada</button>
+    <div id="series-rows"></div>
+
+    <button class="primary-btn" onclick="finishExercise()" style="margin-top:8px;">Guardar y volver</button>
   </div>
 </div>
 
@@ -437,6 +465,31 @@ function saveLastReps(reps) {
   } catch (e) {}
 }
 
+let wakeLock = null;
+
+function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    navigator.wakeLock.request('screen').then(function(lock) {
+      wakeLock = lock;
+    }).catch(function() {
+      // Si falla (no soportado o denegado), la app sigue funcionando igual
+    });
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release().catch(function() {});
+    wakeLock = null;
+  }
+}
+
+document.addEventListener('visibilitychange', function() {
+  if (wakeLock !== null && document.visibilityState === 'visible' && state !== null) {
+    requestWakeLock();
+  }
+});
+
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -444,6 +497,7 @@ function showScreen(id) {
 
 function goHome() {
   state = null;
+  releaseWakeLock();
   showScreen('screen-home');
 }
 
@@ -453,21 +507,42 @@ function startDay(day) {
     alert("Todavía no has definido los ejercicios del día " + day + ". Dímelos y los añadimos.");
     return;
   }
-  const lastWeights = loadLastWeights();
-  const lastReps = loadLastReps();
+  requestWakeLock();
   state = {
     day: day,
     exIndex: null,
     seriesIndex: 0,
     results: [],
-    currentReps: 0,
-    lastWeights: lastWeights,
-    lastReps: lastReps,
-    completed: {}
+    completed: {},
+    lastSessionData: {}
   };
   document.getElementById('daylist-title').textContent = "Día " + day + " · " + plan.label;
   renderDayList();
   showScreen('screen-daylist');
+
+  fetchHistoryFromSheet().then(function(history) {
+    const byExercise = {};
+    history.forEach(function(session) {
+      session.results.forEach(function(r) {
+        if (!byExercise[r.exercise] || new Date(session.date) > new Date(byExercise[r.exercise].date)) {
+          byExercise[r.exercise] = { date: session.date, entries: [] };
+        }
+      });
+    });
+    history.forEach(function(session) {
+      session.results.forEach(function(r) {
+        if (byExercise[r.exercise] && byExercise[r.exercise].date === session.date) {
+          byExercise[r.exercise].entries.push(r);
+        }
+      });
+    });
+    Object.keys(byExercise).forEach(function(name) {
+      const entries = byExercise[name].entries.sort((a, b) => a.series - b.series);
+      state.lastSessionData[name] = entries.map(formatSeries).join(' · ');
+    });
+  }).catch(function() {
+    // Si falla, simplemente no se muestra el bloque de "última vez"
+  });
 }
 
 function renderDayList() {
@@ -518,62 +593,115 @@ function populateSelect(selectEl, options, selectedValue) {
     options.map(v => '<option value="' + v + '"' + (String(v) === String(selectedValue) ? ' selected' : '') + '>' + v + '</option>').join('');
 }
 
+let countdownTimer = null;
+let countdownSeconds = 0;
+
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+  const btn = document.getElementById('countdown-btn');
+  if (btn) btn.textContent = "Iniciar cuenta atrás";
+}
+
+function toggleCountdown() {
+  if (countdownTimer) {
+    stopCountdown();
+    return;
+  }
+  const secondsInput = document.getElementById('countdown-seconds-input');
+  const chosen = parseInt(secondsInput.value);
+  if (!chosen) {
+    alert("Elige primero cuántos segundos quieres.");
+    return;
+  }
+  countdownSeconds = chosen;
+  const valEl = document.getElementById('countdown-val');
+  const btn = document.getElementById('countdown-btn');
+  valEl.textContent = countdownSeconds;
+  btn.textContent = "Detener";
+
+  countdownTimer = setInterval(function() {
+    countdownSeconds--;
+    valEl.textContent = countdownSeconds;
+    if (countdownSeconds <= 0) {
+      stopCountdown();
+      valEl.textContent = "¡Listo!";
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    }
+  }, 1000);
+}
+
 function renderExercise() {
   const ex = currentExercise();
 
   document.getElementById('ex-name').innerHTML = ex.name + '<span class="muscle-badge">' + ex.muscle + '</span>';
   document.getElementById('ex-translation').textContent = ex.translation || '';
-  document.getElementById('ex-progress').textContent =
-    "Ejercicio " + (state.exIndex + 1) + " de " + PLAN[state.day].exercises.length +
-    " · Serie " + (state.seriesIndex + 1) + " de " + ex.reps.length;
 
-  document.getElementById('weight-row').style.display = ex.noWeight ? 'none' : 'flex';
-  populateSelect(document.getElementById('weight-input'), WEIGHT_OPTIONS, '');
-  document.getElementById('reps-label').textContent = ex.isTime ? 'Segundos:' : 'Reps:';
-  populateSelect(document.getElementById('reps-input'), ex.isTime ? SECONDS_OPTIONS : REPS_OPTIONS, '');
+  document.getElementById('countdown-box').style.display = ex.isTime ? 'block' : 'none';
+  stopCountdown();
+  document.getElementById('countdown-val').textContent = '--';
+  if (ex.isTime) {
+    populateSelect(document.getElementById('countdown-seconds-input'), SECONDS_OPTIONS, '');
+  }
 
-  const dotsContainer = document.getElementById('series-dots');
-  dotsContainer.innerHTML = "";
+  const lastBox = document.getElementById('last-time-box');
+  const lastText = document.getElementById('last-time-text');
+  if (state.lastSessionData && state.lastSessionData[ex.name]) {
+    lastBox.style.display = 'block';
+    lastText.textContent = state.lastSessionData[ex.name];
+  } else {
+    lastBox.style.display = 'none';
+  }
+
+  const rowsContainer = document.getElementById('series-rows');
+  rowsContainer.innerHTML = "";
+
   ex.reps.forEach((r, i) => {
-    const dot = document.createElement('div');
-    dot.className = "dot";
-    if (i < state.seriesIndex) dot.classList.add('done');
-    if (i === state.seriesIndex) dot.classList.add('current');
-    dotsContainer.appendChild(dot);
+    const row = document.createElement('div');
+    row.className = "series-row";
+    const repsLabel = ex.isTime ? 'seg' : 'reps';
+    row.innerHTML =
+      '<span class="series-num">S' + (i + 1) + '</span>' +
+      (ex.noWeight ? '' :
+        '<select id="weight-input-' + i + '"></select><span class="unit-label">kg</span>') +
+      '<select id="reps-input-' + i + '"></select><span class="unit-label">' + repsLabel + '</span>';
+    rowsContainer.appendChild(row);
+
+    if (!ex.noWeight) {
+      populateSelect(document.getElementById('weight-input-' + i), WEIGHT_OPTIONS, '');
+    }
+    populateSelect(document.getElementById('reps-input-' + i), ex.isTime ? SECONDS_OPTIONS : REPS_OPTIONS, '');
   });
 }
 
-function completeSeries() {
+function finishExercise() {
   const ex = currentExercise();
-  const weightRaw = document.getElementById('weight-input').value;
-  const repsRaw = document.getElementById('reps-input').value;
+  const results = [];
 
-  if ((!ex.noWeight && weightRaw === '') || repsRaw === '') {
-    alert("Selecciona peso y repeticiones antes de continuar.");
-    return;
+  for (let i = 0; i < ex.reps.length; i++) {
+    const weightRaw = ex.noWeight ? '0' : document.getElementById('weight-input-' + i).value;
+    const repsRaw = document.getElementById('reps-input-' + i).value;
+
+    if ((!ex.noWeight && weightRaw === '') || repsRaw === '') {
+      alert("Faltan datos en la serie " + (i + 1) + ". Rellena peso y repeticiones en todas las series.");
+      return;
+    }
+
+    results.push({
+      exercise: ex.name,
+      series: i + 1,
+      reps: parseInt(repsRaw),
+      weight: ex.noWeight ? 0 : parseFloat(weightRaw),
+      isTime: !!ex.isTime
+    });
   }
 
-  const weight = ex.noWeight ? 0 : parseFloat(weightRaw);
-  const reps = parseInt(repsRaw);
-  const repsKey = ex.id + "_s" + state.seriesIndex;
-
-  state.results.push({
-    exercise: ex.name,
-    series: state.seriesIndex + 1,
-    reps: reps,
-    weight: weight,
-    isTime: !!ex.isTime
-  });
-  state.lastWeights[ex.id] = weight;
-  state.lastReps[repsKey] = reps;
-
-  if (state.seriesIndex < ex.reps.length - 1) {
-    state.seriesIndex++;
-    renderExercise();
-  } else {
-    state.completed[ex.id] = true;
-    backToDayList();
-  }
+  results.forEach(r => { state.results.push(r); });
+  state.completed[ex.id] = true;
+  stopCountdown();
+  backToDayList();
 }
 
 
@@ -600,9 +728,6 @@ function sendToSheet(session) {
 }
 
 function finishSession() {
-  saveLastWeights(state.lastWeights);
-  saveLastReps(state.lastReps);
-
   const session = {
     date: new Date().toISOString(),
     day: state.day,
@@ -750,6 +875,7 @@ function showCalendar() {
 
       const endDate = new Date(week.start);
       endDate.setDate(endDate.getDate() + 6);
+      const weekIsOver = endDate < new Date();
       const label = week.start.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) +
         " – " + endDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
 
@@ -762,7 +888,11 @@ function showCalendar() {
         '<div class="week-label">' + label + '</div>' +
         '<div class="week-days">' + count + ' de 3 días completados · toca para ver detalle</div>' +
         '<div class="week-progress">' +
-        daysArr.map(d => '<div class="pip' + (week.days.has(d) ? ' done' : '') + '">' + d + '</div>').join('') +
+        daysArr.map(d => {
+          const hasIt = week.days.has(d);
+          const cls = hasIt ? ' done' : (weekIsOver ? ' missed' : '');
+          return '<div class="pip' + cls + '">' + d + '</div>';
+        }).join('') +
         '</div>' +
         '<div id="' + detailId + '" style="display:none; margin-top:12px;"></div>';
 
