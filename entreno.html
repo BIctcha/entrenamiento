@@ -541,8 +541,32 @@ function startDay(day) {
       const entries = byExercise[name].entries.sort((a, b) => a.series - b.series);
       state.lastSessionData[name] = entries.map(formatSeries).join(' · ');
     });
+
+    // Marca en verde y precarga los ejercicios de este día ya hechos esta semana
+    const currentWeekKey = getWeekKey(new Date());
+    const thisWeekSessions = history.filter(function(s) {
+      return s.day === day && getWeekKey(new Date(s.date)) === currentWeekKey;
+    });
+    thisWeekSessions.forEach(function(session) {
+      session.results.forEach(function(r) {
+        const ex = plan.exercises.find(function(e) { return e.name === r.exercise; });
+        if (!ex) return;
+        if (!state.completedData[ex.id]) state.completedData[ex.id] = [];
+        state.completedData[ex.id][r.series - 1] = r;
+        state.completed[ex.id] = true;
+        state.completedData[ex.id + "_sent"] = true;
+      });
+      // Guarda la fecha de esa sesión existente para que la edición sobreescriba la fila correcta
+      state.exerciseSessionDate = state.exerciseSessionDate || {};
+      session.results.forEach(function(r) {
+        const ex = plan.exercises.find(function(e) { return e.name === r.exercise; });
+        if (ex) state.exerciseSessionDate[ex.id] = session.date;
+      });
+    });
+
+    renderDayList();
   }).catch(function() {
-    // Si falla, simplemente no se muestra el bloque de "última vez"
+    // Si falla, simplemente no se muestra el bloque de "última vez" ni el estado previo
   });
 }
 
@@ -707,14 +731,20 @@ function finishExercise() {
   state.completedData[ex.id] = results;
   stopCountdown();
 
-  sendExerciseToSheet(ex.name, results, !!state.completedData[ex.id + "_sent"]);
+  const wasAlreadySent = !!state.completedData[ex.id + "_sent"];
+  const oldDate = (state.exerciseSessionDate && state.exerciseSessionDate[ex.id]) || null;
+
+  sendExerciseToSheet(ex.name, results, wasAlreadySent, oldDate);
+
   state.completedData[ex.id + "_sent"] = true;
+  if (!state.exerciseSessionDate) state.exerciseSessionDate = {};
+  state.exerciseSessionDate[ex.id] = state.sessionDate;
 
   backToDayList();
 }
 
 
-function sendExerciseToSheet(exerciseName, results, alreadySent) {
+function sendExerciseToSheet(exerciseName, results, alreadySent, oldDate) {
   const rows = results.map(function(r) {
     return {
       fecha: state.sessionDate,
@@ -727,8 +757,8 @@ function sendExerciseToSheet(exerciseName, results, alreadySent) {
   });
 
   const body = { rows: rows };
-  if (alreadySent) {
-    body.replaceKey = { fecha: state.sessionDate, dia: state.day, ejercicio: exerciseName };
+  if (alreadySent && oldDate) {
+    body.replaceKey = { fecha: oldDate, dia: state.day, ejercicio: exerciseName };
   }
 
   fetch(SHEET_URL, {
