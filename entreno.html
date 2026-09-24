@@ -512,8 +512,9 @@ function startDay(day) {
     day: day,
     exIndex: null,
     seriesIndex: 0,
-    results: [],
+    sessionDate: new Date().toISOString(),
     completed: {},
+    completedData: {},
     lastSessionData: {}
   };
   document.getElementById('daylist-title').textContent = "Día " + day + " · " + plan.label;
@@ -655,6 +656,8 @@ function renderExercise() {
     lastBox.style.display = 'none';
   }
 
+  const savedResults = state.completedData[ex.id] || null;
+
   const rowsContainer = document.getElementById('series-rows');
   rowsContainer.innerHTML = "";
 
@@ -669,10 +672,12 @@ function renderExercise() {
       '<select id="reps-input-' + i + '"></select><span class="unit-label">' + repsLabel + '</span>';
     rowsContainer.appendChild(row);
 
+    const savedRow = savedResults ? savedResults[i] : null;
+
     if (!ex.noWeight) {
-      populateSelect(document.getElementById('weight-input-' + i), WEIGHT_OPTIONS, '');
+      populateSelect(document.getElementById('weight-input-' + i), WEIGHT_OPTIONS, savedRow ? savedRow.weight : '');
     }
-    populateSelect(document.getElementById('reps-input-' + i), ex.isTime ? SECONDS_OPTIONS : REPS_OPTIONS, '');
+    populateSelect(document.getElementById('reps-input-' + i), ex.isTime ? SECONDS_OPTIONS : REPS_OPTIONS, savedRow ? savedRow.reps : '');
   });
 }
 
@@ -698,45 +703,55 @@ function finishExercise() {
     });
   }
 
-  results.forEach(r => { state.results.push(r); });
   state.completed[ex.id] = true;
+  state.completedData[ex.id] = results;
   stopCountdown();
+
+  sendExerciseToSheet(ex.name, results, !!state.completedData[ex.id + "_sent"]);
+  state.completedData[ex.id + "_sent"] = true;
+
   backToDayList();
 }
 
 
-function sendToSheet(session) {
-  const rows = session.results.map(function(r) {
+function sendExerciseToSheet(exerciseName, results, alreadySent) {
+  const rows = results.map(function(r) {
     return {
-      fecha: session.date,
-      dia: session.day,
-      ejercicio: r.exercise,
+      fecha: state.sessionDate,
+      dia: state.day,
+      ejercicio: exerciseName,
       serie: r.series,
       reps: r.reps,
       peso: r.weight
     };
   });
 
+  const body = { rows: rows };
+  if (alreadySent) {
+    body.replaceKey = { fecha: state.sessionDate, dia: state.day, ejercicio: exerciseName };
+  }
+
   fetch(SHEET_URL, {
     method: "POST",
     mode: "no-cors",
     headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ rows: rows })
+    body: JSON.stringify(body)
   }).catch(function(err) {
     console.error("Error al enviar a Google Sheets:", err);
   });
 }
 
 function finishSession() {
-  const session = {
-    date: new Date().toISOString(),
-    day: state.day,
-    results: state.results
-  };
-  sendToSheet(session);
+  const allResults = [];
+  Object.keys(state.completedData).forEach(function(key) {
+    if (key.endsWith("_sent")) return;
+    allResults.push.apply(allResults, state.completedData[key]);
+  });
+  const session = { date: state.sessionDate, day: state.day, results: allResults };
 
   renderSummary(session);
   showScreen('screen-summary');
+  releaseWakeLock();
   state = null;
 }
 
