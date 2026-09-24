@@ -547,6 +547,9 @@ function startDay(day) {
     const thisWeekSessions = history.filter(function(s) {
       return s.day === day && getWeekKey(new Date(s.date)) === currentWeekKey;
     });
+
+    console.log("DEBUG day:", day, "currentWeekKey:", currentWeekKey);
+
     thisWeekSessions.forEach(function(session) {
       session.results.forEach(function(r) {
         const ex = plan.exercises.find(function(e) { return e.name === r.exercise; });
@@ -565,6 +568,13 @@ function startDay(day) {
     });
 
     renderDayList();
+
+    const debugEl = document.createElement('div');
+    debugEl.style.cssText = "font-size:0.65rem; color:var(--muted); white-space:pre-wrap; padding:10px; background:var(--card); border-radius:8px; margin-top:10px;";
+    debugEl.textContent = "DEBUG\nday=" + day + " weekKey=" + currentWeekKey +
+      "\nhistory=" + JSON.stringify(history, null, 1) +
+      "\nthisWeek=" + JSON.stringify(thisWeekSessions, null, 1);
+    document.getElementById('daylist-items').appendChild(debugEl);
   }).catch(function() {
     // Si falla, simplemente no se muestra el bloque de "última vez" ni el estado previo
   });
