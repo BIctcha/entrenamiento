@@ -518,7 +518,8 @@ function startDay(day) {
     lastSessionData: {}
   };
   document.getElementById('daylist-title').textContent = "Día " + day + " · " + plan.label;
-  renderDayList();
+  document.getElementById('daylist-items').innerHTML = '<div class="empty-msg">Cargando historial...</div>';
+  document.getElementById('finish-day-btn').style.display = 'none';
   showScreen('screen-daylist');
 
   fetchHistoryFromSheet().then(function(history) {
@@ -575,8 +576,9 @@ function startDay(day) {
       "\nhistory=" + JSON.stringify(history, null, 1) +
       "\nthisWeek=" + JSON.stringify(thisWeekSessions, null, 1);
     document.getElementById('daylist-items').appendChild(debugEl);
-  }).catch(function() {
-    // Si falla, simplemente no se muestra el bloque de "última vez" ni el estado previo
+  }).catch(function(err) {
+    renderDayList();
+    console.error("Error al cargar historial:", err);
   });
 }
 
