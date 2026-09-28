@@ -270,6 +270,27 @@
     min-width: 0;
   }
   .series-row .unit-label { color: var(--muted); font-size: 0.8rem; width: 30px; flex-shrink: 0; }
+
+  .mt-day-row {
+    width: 100%;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 1rem;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .mt-day-row.done {
+    border-color: var(--good);
+    background: rgba(79, 214, 140, 0.08);
+  }
+  .mt-day-row .mt-day-name { font-weight: 600; }
+  .mt-day-row .mt-day-date { color: var(--muted); font-size: 0.85rem; margin-left: 8px; }
 </style>
 </head>
 <body>
@@ -288,7 +309,23 @@
     <span>Día C<span class="sub">Hombro + Pierna</span></span>
     <span>›</span>
   </button>
+  <button class="day-btn" onclick="openMuayThai()">
+    <span>Día T<span class="sub">Muay Thai</span></span>
+    <span>›</span>
+  </button>
   <button class="link-btn" onclick="showCalendar()">Ver calendario</button>
+</div>
+
+<div id="screen-muaythai" class="screen">
+  <div class="top-bar">
+    <button class="link-btn" onclick="goHome()">‹ Salir</button>
+    <span style="color:var(--muted); font-size:0.9rem;">Día T · Muay Thai</span>
+  </div>
+  <div class="card">
+    <div class="ex-name">Muay Thai</div>
+    <div class="ex-translation" style="margin-bottom:16px;">Marca los días de esta semana (lunes a viernes) en los que has ido a entrenar.</div>
+    <div id="mt-days-list"></div>
+  </div>
 </div>
 
 <div id="screen-daylist" class="screen">
@@ -389,8 +426,13 @@ const PLAN = {
       { id: "shoulder_press", name: "Shoulder Press", muscle: "Hombro", reps: [0,0,0] },
       { id: "lateral_raise", name: "Lateral Raise", muscle: "Hombro", reps: [0,0,0] },
     ]
+  },
+  T: {
+    label: "Muay Thai"
   }
 };
+
+const MT_DAY_NAMES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 
 const SHEET_URL = "https://script.google.com/macros/s/AKfycby1WmtnP9GfvcMGbeu8mrHj4CTJ71gLec3WnuctIBabCApb5A4FnlgUnbVd2u-23SEr0A/exec";
 const STORAGE_KEY = "entreno_historial";
@@ -549,8 +591,6 @@ function startDay(day) {
       return s.day === day && getWeekKey(new Date(s.date)) === currentWeekKey;
     });
 
-    console.log("DEBUG day:", day, "currentWeekKey:", currentWeekKey);
-
     thisWeekSessions.forEach(function(session) {
       session.results.forEach(function(r) {
         const ex = plan.exercises.find(function(e) { return e.name === r.exercise; });
@@ -569,16 +609,81 @@ function startDay(day) {
     });
 
     renderDayList();
-
-    const debugEl = document.createElement('div');
-    debugEl.style.cssText = "font-size:0.65rem; color:var(--muted); white-space:pre-wrap; padding:10px; background:var(--card); border-radius:8px; margin-top:10px;";
-    debugEl.textContent = "DEBUG\nday=" + day + " weekKey=" + currentWeekKey +
-      "\nhistory=" + JSON.stringify(history, null, 1) +
-      "\nthisWeek=" + JSON.stringify(thisWeekSessions, null, 1);
-    document.getElementById('daylist-items').appendChild(debugEl);
   }).catch(function(err) {
     renderDayList();
     console.error("Error al cargar historial:", err);
+  });
+}
+
+function getMondayOfWeek(date) {
+  return getWeekStart(date);
+}
+
+function openMuayThai() {
+  const container = document.getElementById('mt-days-list');
+  container.innerHTML = '<div class="empty-msg">Cargando...</div>';
+  showScreen('screen-muaythai');
+
+  fetchHistoryFromSheet().then(function(history) {
+    const monday = getMondayOfWeek(new Date());
+    const currentWeekKey = getWeekKey(new Date());
+    const doneDates = {};
+    history.forEach(function(s) {
+      if (s.day === 'T' && getWeekKey(new Date(s.date)) === currentWeekKey) {
+        const d = new Date(s.date);
+        const key = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0');
+        doneDates[key] = true;
+      }
+    });
+
+    container.innerHTML = "";
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(monday);
+      d.setDate(d.getDate() + i);
+      const key = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0');
+      const isDone = !!doneDates[key];
+      const dateLabel = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+
+      const row = document.createElement('button');
+      row.className = "mt-day-row" + (isDone ? " done" : "");
+      row.innerHTML =
+        '<span><span class="mt-day-name">' + MT_DAY_NAMES[i] + '</span><span class="mt-day-date">' + dateLabel + '</span></span>' +
+        (isDone ? '<span class="check-mark">✓</span>' : '<span>›</span>');
+      row.onclick = () => toggleMuayThaiDay(d, key, isDone);
+      container.appendChild(row);
+    }
+  }).catch(function(err) {
+    container.innerHTML = '<div class="empty-msg">Error al cargar desde Google Sheets: ' + err.message + '</div>';
+  });
+}
+
+function toggleMuayThaiDay(date, key, isDone) {
+  if (isDone) {
+    if (!confirm("¿Quitar este día?")) return;
+    sendMuayThaiToSheet(date, key, true);
+  } else {
+    sendMuayThaiToSheet(date, key, false);
+  }
+  setTimeout(openMuayThai, 300);
+}
+
+function sendMuayThaiToSheet(date, key, removeOnly) {
+  const isoDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0).toISOString();
+  const body = {
+    replaceKey: { fecha: isoDate, dia: 'T', ejercicio: 'Asistencia' }
+  };
+  if (!removeOnly) {
+    body.rows = [{ fecha: isoDate, dia: 'T', ejercicio: 'Asistencia', serie: 1, reps: 1, peso: 0 }];
+  } else {
+    body.rows = [];
+  }
+  fetch(SHEET_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(body)
+  }).catch(function(err) {
+    console.error("Error al enviar Muay Thai:", err);
   });
 }
 
@@ -916,10 +1021,14 @@ function showCalendar() {
       const date = new Date(session.date);
       const key = getWeekKey(date);
       if (!weeks[key]) {
-        weeks[key] = { start: getWeekStart(date), days: new Set(), sessions: [] };
+        weeks[key] = { start: getWeekStart(date), days: new Set(), mtDays: new Set(), sessions: [] };
       }
-      weeks[key].days.add(session.day);
-      weeks[key].sessions.push(session);
+      if (session.day === 'T') {
+        weeks[key].mtDays.add(new Date(session.date).getDay());
+      } else {
+        weeks[key].days.add(session.day);
+        weeks[key].sessions.push(session);
+      }
     });
 
     const sortedKeys = Object.keys(weeks).sort().reverse();
@@ -941,6 +1050,10 @@ function showCalendar() {
       div.style.cursor = "pointer";
 
       const detailId = "week-detail-" + wi;
+      const mtCount = week.mtDays.size;
+      const mtLabels = ['L','M','X','J','V'];
+      const mtDayNums = [1,2,3,4,5];
+
       div.innerHTML =
         '<div class="week-label">' + label + '</div>' +
         '<div class="week-days">' + count + ' de 3 días completados · toca para ver detalle</div>' +
@@ -949,6 +1062,14 @@ function showCalendar() {
           const hasIt = week.days.has(d);
           const cls = hasIt ? ' done' : (weekIsOver ? ' missed' : '');
           return '<div class="pip' + cls + '">' + d + '</div>';
+        }).join('') +
+        '</div>' +
+        '<div class="week-days" style="margin-top:10px;">Muay Thai: ' + mtCount + ' de 5 días</div>' +
+        '<div class="week-progress">' +
+        mtDayNums.map((dn, i) => {
+          const hasIt = week.mtDays.has(dn);
+          const cls = hasIt ? ' done' : (weekIsOver ? ' missed' : '');
+          return '<div class="pip' + cls + '">' + mtLabels[i] + '</div>';
         }).join('') +
         '</div>' +
         '<div id="' + detailId + '" style="display:none; margin-top:12px;"></div>';
