@@ -5,19 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Entrenamiento</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Entrenamiento">
 <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAACe0lEQVR4nO3cQW7TQBiAUYrYV12U83AojsGhOA+nYJFNF3whGcvmN35vHcnjma8Te1Tl5fXt/RP8yed/PQDmEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkL4cc5lvP37d/8DP71+PGclZTJixI3aOv97ng5+5jiEztnscj9+DPm7mzNi+cTw7en2MmrEd41gb95X7mDZj3lZI4iCJgyQOkjhIW09Ir/xyMcedVdhykLpp51DGfFvWaD0OZZzF8kotxqGMc1lbLw+kJHGQxEESB0kcJHGQxEE66B+Mn+IQZQg7B0kcJHGQxEESB0kcJHGQxEESB2niCellf45h2tGwnYMkDpI4SOIgiYMkDtJiHJd92zyptfVa3zn0cRbLK7Xpa0Uf821Zo60npHeuPe287z+201+pB1KSOEjiIImDJA7SjnGsPUJf+fV42oztu3M8O+4rl3EzasZ2/1p5fPTKuJkzY0c8czxyD8r4aMiMvby+ve99DU7K2wpJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkMRBEgdJHCRxkH4D/MJXkRuyqWIAAAAASUVORK5CYII=">
 <style>
   :root {
-    --bg: #0f1115;
-    --card: #1a1d24;
-    --text: #e8e9ec;
-    --muted: #8a8f98;
-    --accent: #4f9dff;
-    --accent-dim: #2a4a70;
-    --good: #4fd68c;
-    --border: #2a2e37;
+    --bg: #EDF2FA;
+    --card: #ffffff;
+    --text: #2F2E2E;
+    --muted: #808085;
+    --accent: #7B5BF2;
+    --accent-dim: #E8E2FC;
+    --good: #22a06b;
+    --border: #dfe3ee;
+    --navy: #09184D;
   }
   * { box-sizing: border-box; }
   body {
@@ -41,13 +42,14 @@
     margin-bottom: 12px;
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 16px;
     color: var(--text);
     font-size: 1.05rem;
     text-align: left;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    box-shadow: 0 4px 14px rgba(9, 24, 77, 0.06);
   }
   .day-btn:active { background: var(--accent-dim); }
   .day-btn .sub { color: var(--muted); font-size: 0.85rem; margin-top: 4px; display: block; }
@@ -69,9 +71,10 @@
   .card {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 16px;
     padding: 20px;
     margin-bottom: 16px;
+    box-shadow: 0 4px 14px rgba(9, 24, 77, 0.06);
   }
   .ex-name { font-size: 1.4rem; font-weight: 600; margin-bottom: 2px; }
   .ex-translation { color: var(--accent); font-size: 0.9rem; font-style: italic; margin-bottom: 8px; }
@@ -196,13 +199,14 @@
     margin-bottom: 10px;
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     color: var(--text);
     font-size: 1rem;
     text-align: left;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    box-shadow: 0 2px 10px rgba(9, 24, 77, 0.05);
   }
   .ex-list-item.completed {
     border-color: var(--good);
@@ -229,9 +233,10 @@
   .week-row {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 14px 16px;
     margin-bottom: 10px;
+    box-shadow: 0 2px 10px rgba(9, 24, 77, 0.05);
   }
   .week-row.complete { border-color: var(--good); }
   .week-label { font-weight: 600; margin-bottom: 6px; }
