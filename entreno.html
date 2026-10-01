@@ -311,7 +311,7 @@
     <span>›</span>
   </button>
   <button class="day-btn" onclick="startDay('C')">
-    <span>Día C<span class="sub">Hombro + Pierna</span></span>
+    <span>Día C<span class="sub">Hombro</span></span>
     <span>›</span>
   </button>
   <button class="day-btn" onclick="startDay('D')">
@@ -326,7 +326,7 @@
     <span>Día F<span class="sub">Fútbol</span></span>
     <span>›</span>
   </button>
-  <button class="link-btn" onclick="showCalendar()">Ver calendario</button>
+  <button class="link-btn" onclick="showCalendar()">Ver historial</button>
 </div>
 
 <div id="screen-attendance" class="screen">
@@ -434,7 +434,7 @@ const PLAN = {
     ]
   },
   C: {
-    label: "Hombro + Pierna",
+    label: "Hombro",
     exercises: [
       { id: "shoulder_press", name: "Shoulder Press", muscle: "Hombro", reps: [0,0,0] },
       { id: "lateral_raise", name: "Lateral Raise", muscle: "Hombro", reps: [0,0,0] },
@@ -1083,7 +1083,7 @@ function showCalendar() {
 
     sortedKeys.forEach((key, wi) => {
       const week = weeks[key];
-      const daysArr = ['A', 'B', 'C'];
+      const daysArr = ['A', 'B', 'C', 'D'];
       const count = week.days.size;
       const complete = count >= 3;
 
