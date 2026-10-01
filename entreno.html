@@ -301,7 +301,10 @@
 <body>
 
 <div id="screen-home" class="screen active">
-  <h1>Entrenamiento</h1>
+  <div class="top-bar" style="margin-bottom:8px;">
+    <h1 style="margin:0;">Entrenamiento</h1>
+    <button class="link-btn" onclick="showCalendar()">Ver historial</button>
+  </div>
   <button class="day-btn" onclick="startDay('A')">
     <span>Día A<span class="sub">Bíceps + Tríceps</span></span>
     <span>›</span>
@@ -326,7 +329,6 @@
     <span>Día F<span class="sub">Fútbol</span></span>
     <span>›</span>
   </button>
-  <button class="link-btn" onclick="showCalendar()">Ver historial</button>
 </div>
 
 <div id="screen-attendance" class="screen">
