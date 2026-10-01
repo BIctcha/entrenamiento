@@ -314,6 +314,10 @@
     <span>Día C<span class="sub">Hombro + Pierna</span></span>
     <span>›</span>
   </button>
+  <button class="day-btn" onclick="startDay('D')">
+    <span>Día D<span class="sub">Pierna (banda)</span></span>
+    <span>›</span>
+  </button>
   <button class="day-btn" onclick="openAttendance('T')">
     <span>Día T<span class="sub">Muay Thai</span></span>
     <span>›</span>
@@ -434,6 +438,17 @@ const PLAN = {
     exercises: [
       { id: "shoulder_press", name: "Shoulder Press", muscle: "Hombro", reps: [0,0,0] },
       { id: "lateral_raise", name: "Lateral Raise", muscle: "Hombro", reps: [0,0,0] },
+    ]
+  },
+  D: {
+    label: "Pierna (banda)",
+    exercises: [
+      { id: "sentadilla_estatica", name: "Sentadilla estática", muscle: "Pierna", reps: [1,1,1], isTime: true, noWeight: true },
+      { id: "sentadilla_movimiento", name: "Sentadilla movimiento", muscle: "Pierna", reps: [16,14,12], noWeight: true },
+      { id: "pasos_laterales", name: "Pasos laterales", muscle: "Pierna", reps: [16,14,12], noWeight: true },
+      { id: "flexion_trasera", name: "Flexión trasera", muscle: "Pierna", reps: [16,14,12], noWeight: true },
+      { id: "apertura_lateral", name: "Apertura lateral", muscle: "Pierna", reps: [16,14,12], noWeight: true },
+      { id: "flexion_frontal", name: "Flexión frontal", muscle: "Pierna", reps: [16,14,12], noWeight: true },
     ]
   },
   T: {
