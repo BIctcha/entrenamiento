@@ -1087,7 +1087,7 @@ function showCalendar() {
       const week = weeks[key];
       const daysArr = ['A', 'B', 'C', 'D'];
       const count = week.days.size;
-      const complete = count >= 3;
+      const complete = count >= daysArr.length;
 
       const endDate = new Date(week.start);
       endDate.setDate(endDate.getDate() + 6);
@@ -1119,7 +1119,7 @@ function showCalendar() {
 
       div.innerHTML =
         '<div class="week-label">' + label + '</div>' +
-        '<div class="week-days">' + count + ' de 3 días completados · toca para ver detalle</div>' +
+        '<div class="week-days">' + count + ' de ' + daysArr.length + ' días completados · toca para ver detalle</div>' +
         '<div class="week-progress">' +
         daysArr.map(d => {
           const hasIt = week.days.has(d);
