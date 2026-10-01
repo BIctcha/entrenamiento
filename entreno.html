@@ -314,22 +314,26 @@
     <span>Día C<span class="sub">Hombro + Pierna</span></span>
     <span>›</span>
   </button>
-  <button class="day-btn" onclick="openMuayThai()">
+  <button class="day-btn" onclick="openAttendance('T')">
     <span>Día T<span class="sub">Muay Thai</span></span>
+    <span>›</span>
+  </button>
+  <button class="day-btn" onclick="openAttendance('F')">
+    <span>Día F<span class="sub">Fútbol</span></span>
     <span>›</span>
   </button>
   <button class="link-btn" onclick="showCalendar()">Ver calendario</button>
 </div>
 
-<div id="screen-muaythai" class="screen">
+<div id="screen-attendance" class="screen">
   <div class="top-bar">
     <button class="link-btn" onclick="goHome()">‹ Salir</button>
-    <span style="color:var(--muted); font-size:0.9rem;">Día T · Muay Thai</span>
+    <span id="attendance-title" style="color:var(--muted); font-size:0.9rem;"></span>
   </div>
   <div class="card">
-    <div class="ex-name">Muay Thai</div>
-    <div class="ex-translation" style="margin-bottom:16px;">Marca los días de esta semana (lunes a viernes) en los que has ido a entrenar.</div>
-    <div id="mt-days-list"></div>
+    <div class="ex-name" id="attendance-name"></div>
+    <div class="ex-translation" style="margin-bottom:16px;" id="attendance-sub"></div>
+    <div id="attendance-days-list"></div>
   </div>
 </div>
 
@@ -434,10 +438,19 @@ const PLAN = {
   },
   T: {
     label: "Muay Thai"
+  },
+  F: {
+    label: "Fútbol"
   }
 };
 
-const MT_DAY_NAMES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+// Días de asistencia (sin series/reps): cada clave de ATTENDANCE_PLANS define
+// qué días de la semana (0=domingo..6=sábado) se pueden marcar para ese día.
+const ATTENDANCE_PLANS = {
+  T: { label: "Muay Thai", weekdays: [1, 2, 3, 4, 5] }, // lunes a viernes
+  F: { label: "Fútbol", weekdays: [4, 6] } // jueves y sábado
+};
+const WEEKDAY_NAMES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
 const SHEET_URL = "https://script.google.com/macros/s/AKfycby1WmtnP9GfvcMGbeu8mrHj4CTJ71gLec3WnuctIBabCApb5A4FnlgUnbVd2u-23SEr0A/exec";
 const STORAGE_KEY = "entreno_historial";
@@ -624,71 +637,86 @@ function getMondayOfWeek(date) {
   return getWeekStart(date);
 }
 
-function openMuayThai() {
-  const container = document.getElementById('mt-days-list');
+function dateKey(d) {
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0');
+}
+
+let attendanceState = null;
+
+function openAttendance(dayCode) {
+  const plan = ATTENDANCE_PLANS[dayCode];
+  attendanceState = { dayCode: dayCode, doneDates: {} };
+
+  document.getElementById('attendance-title').textContent = "Día " + dayCode + " · " + plan.label;
+  document.getElementById('attendance-name').textContent = plan.label;
+  document.getElementById('attendance-sub').textContent = "Marca los días de esta semana en los que has ido.";
+  const container = document.getElementById('attendance-days-list');
   container.innerHTML = '<div class="empty-msg">Cargando...</div>';
-  showScreen('screen-muaythai');
+  showScreen('screen-attendance');
 
   fetchHistoryFromSheet().then(function(history) {
-    const monday = getMondayOfWeek(new Date());
     const currentWeekKey = getWeekKey(new Date());
-    const doneDates = {};
     history.forEach(function(s) {
-      if (s.day === 'T' && getWeekKey(new Date(s.date)) === currentWeekKey) {
-        const d = new Date(s.date);
-        const key = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0');
-        doneDates[key] = true;
+      if (s.day === dayCode && getWeekKey(new Date(s.date)) === currentWeekKey) {
+        attendanceState.doneDates[dateKey(new Date(s.date))] = true;
       }
     });
-
-    container.innerHTML = "";
-    for (let i = 0; i < 5; i++) {
-      const d = new Date(monday);
-      d.setDate(d.getDate() + i);
-      const key = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0');
-      const isDone = !!doneDates[key];
-      const dateLabel = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-
-      const row = document.createElement('button');
-      row.className = "mt-day-row" + (isDone ? " done" : "");
-      row.innerHTML =
-        '<span><span class="mt-day-name">' + MT_DAY_NAMES[i] + '</span><span class="mt-day-date">' + dateLabel + '</span></span>' +
-        (isDone ? '<span class="check-mark">✓</span>' : '<span>›</span>');
-      row.onclick = () => toggleMuayThaiDay(d, key, isDone);
-      container.appendChild(row);
-    }
+    renderAttendanceDays();
   }).catch(function(err) {
     container.innerHTML = '<div class="empty-msg">Error al cargar desde Google Sheets: ' + err.message + '</div>';
   });
 }
 
-function toggleMuayThaiDay(date, key, isDone) {
-  if (isDone) {
-    if (!confirm("¿Quitar este día?")) return;
-    sendMuayThaiToSheet(date, key, true);
-  } else {
-    sendMuayThaiToSheet(date, key, false);
-  }
-  setTimeout(openMuayThai, 300);
+function renderAttendanceDays() {
+  const plan = ATTENDANCE_PLANS[attendanceState.dayCode];
+  const monday = getMondayOfWeek(new Date());
+  const container = document.getElementById('attendance-days-list');
+  container.innerHTML = "";
+
+  plan.weekdays.forEach(function(weekdayNum) {
+    // weekdayNum: 0=domingo..6=sábado; monday es lunes de esta semana
+    const offset = (weekdayNum + 6) % 7; // lunes=0 ... domingo=6
+    const d = new Date(monday);
+    d.setDate(d.getDate() + offset);
+    const key = dateKey(d);
+    const isDone = !!attendanceState.doneDates[key];
+    const dateLabel = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+
+    const row = document.createElement('button');
+    row.className = "mt-day-row" + (isDone ? " done" : "");
+    row.innerHTML =
+      '<span><span class="mt-day-name">' + WEEKDAY_NAMES[weekdayNum] + '</span><span class="mt-day-date">' + dateLabel + '</span></span>' +
+      (isDone ? '<span class="check-mark">✓</span>' : '<span>›</span>');
+    row.onclick = () => toggleAttendanceDay(d, key, isDone);
+    container.appendChild(row);
+  });
 }
 
-function sendMuayThaiToSheet(date, key, removeOnly) {
+function toggleAttendanceDay(date, key, isDone) {
+  if (isDone) {
+    if (!confirm("¿Quitar este día?")) return;
+    attendanceState.doneDates[key] = false;
+    delete attendanceState.doneDates[key];
+  } else {
+    attendanceState.doneDates[key] = true;
+  }
+  renderAttendanceDays();
+  sendAttendanceToSheet(attendanceState.dayCode, date, isDone);
+}
+
+function sendAttendanceToSheet(dayCode, date, removeOnly) {
   const isoDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0).toISOString();
   const body = {
-    replaceKey: { fecha: isoDate, dia: 'T', ejercicio: 'Asistencia' }
+    replaceKey: { fecha: isoDate, dia: dayCode, ejercicio: 'Asistencia' }
   };
-  if (!removeOnly) {
-    body.rows = [{ fecha: isoDate, dia: 'T', ejercicio: 'Asistencia', serie: 1, reps: 1, peso: 0 }];
-  } else {
-    body.rows = [];
-  }
+  body.rows = removeOnly ? [] : [{ fecha: isoDate, dia: dayCode, ejercicio: 'Asistencia', serie: 1, reps: 1, peso: 0 }];
   fetch(SHEET_URL, {
     method: "POST",
     mode: "no-cors",
     headers: { "Content-Type": "text/plain" },
     body: JSON.stringify(body)
   }).catch(function(err) {
-    console.error("Error al enviar Muay Thai:", err);
+    console.error("Error al enviar asistencia:", err);
   });
 }
 
@@ -1026,10 +1054,10 @@ function showCalendar() {
       const date = new Date(session.date);
       const key = getWeekKey(date);
       if (!weeks[key]) {
-        weeks[key] = { start: getWeekStart(date), days: new Set(), mtDays: new Set(), sessions: [] };
+        weeks[key] = { start: getWeekStart(date), days: new Set(), attendance: { T: new Set(), F: new Set() }, sessions: [] };
       }
-      if (session.day === 'T') {
-        weeks[key].mtDays.add(new Date(session.date).getDay());
+      if (ATTENDANCE_PLANS[session.day]) {
+        weeks[key].attendance[session.day].add(new Date(session.date).getDay());
       } else {
         weeks[key].days.add(session.day);
         weeks[key].sessions.push(session);
@@ -1055,9 +1083,22 @@ function showCalendar() {
       div.style.cursor = "pointer";
 
       const detailId = "week-detail-" + wi;
-      const mtCount = week.mtDays.size;
-      const mtLabels = ['L','M','X','J','V'];
-      const mtDayNums = [1,2,3,4,5];
+      const weekdayLabels = ['D','L','M','X','J','V','S'];
+
+      let attendanceHtml = '';
+      Object.keys(ATTENDANCE_PLANS).forEach(function(code) {
+        const plan = ATTENDANCE_PLANS[code];
+        const doneSet = week.attendance[code] || new Set();
+        attendanceHtml +=
+          '<div class="week-days" style="margin-top:10px;">' + plan.label + ': ' + doneSet.size + ' de ' + plan.weekdays.length + ' días</div>' +
+          '<div class="week-progress">' +
+          plan.weekdays.map(function(dn) {
+            const hasIt = doneSet.has(dn);
+            const cls = hasIt ? ' done' : (weekIsOver ? ' missed' : '');
+            return '<div class="pip' + cls + '">' + weekdayLabels[dn] + '</div>';
+          }).join('') +
+          '</div>';
+      });
 
       div.innerHTML =
         '<div class="week-label">' + label + '</div>' +
@@ -1069,14 +1110,7 @@ function showCalendar() {
           return '<div class="pip' + cls + '">' + d + '</div>';
         }).join('') +
         '</div>' +
-        '<div class="week-days" style="margin-top:10px;">Muay Thai: ' + mtCount + ' de 5 días</div>' +
-        '<div class="week-progress">' +
-        mtDayNums.map((dn, i) => {
-          const hasIt = week.mtDays.has(dn);
-          const cls = hasIt ? ' done' : (weekIsOver ? ' missed' : '');
-          return '<div class="pip' + cls + '">' + mtLabels[i] + '</div>';
-        }).join('') +
-        '</div>' +
+        attendanceHtml +
         '<div id="' + detailId + '" style="display:none; margin-top:12px;"></div>';
 
       div.onclick = () => {
