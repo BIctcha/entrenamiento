@@ -329,6 +329,10 @@
     <span>Día F<span class="sub">Fútbol</span></span>
     <span>›</span>
   </button>
+  <button class="day-btn" onclick="openAttendance('S')">
+    <span>Día S<span class="sub">Andar</span></span>
+    <span>›</span>
+  </button>
 </div>
 
 <div id="screen-attendance" class="screen">
@@ -459,6 +463,9 @@ const PLAN = {
   },
   F: {
     label: "Fútbol"
+  },
+  S: {
+    label: "Andar"
   }
 };
 
@@ -466,7 +473,8 @@ const PLAN = {
 // qué días de la semana (0=domingo..6=sábado) se pueden marcar para ese día.
 const ATTENDANCE_PLANS = {
   T: { label: "Muay Thai", weekdays: [1, 2, 3, 4, 5] }, // lunes a viernes
-  F: { label: "Fútbol", weekdays: [4, 6] } // jueves y sábado
+  F: { label: "Fútbol", weekdays: [4, 6] }, // jueves y sábado
+  S: { label: "Andar", weekdays: [1, 2, 3, 4, 5] } // lunes a viernes
 };
 const WEEKDAY_NAMES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
@@ -778,7 +786,7 @@ function currentExercise() {
 }
 
 const WEIGHT_OPTIONS = [5, 7, 8, 10, 15, 20];
-const REPS_OPTIONS = Array.from({length: 25}, (_, i) => i + 1);
+const REPS_OPTIONS = Array.from({length: 50}, (_, i) => i + 1);
 const SECONDS_OPTIONS = Array.from({length: 18}, (_, i) => (i + 1) * 5);
 
 function populateSelect(selectEl, options, selectedValue) {
@@ -1072,7 +1080,7 @@ function showCalendar() {
       const date = new Date(session.date);
       const key = getWeekKey(date);
       if (!weeks[key]) {
-        weeks[key] = { start: getWeekStart(date), days: new Set(), attendance: { T: new Set(), F: new Set() }, sessions: [] };
+        weeks[key] = { start: getWeekStart(date), days: new Set(), attendance: Object.keys(ATTENDANCE_PLANS).reduce(function(o, k) { o[k] = new Set(); return o; }, {}), sessions: [] };
       }
       if (ATTENDANCE_PLANS[session.day]) {
         weeks[key].attendance[session.day].add(new Date(session.date).getDay());
